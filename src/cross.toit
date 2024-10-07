@@ -3,6 +3,7 @@
 // found in the package's LICENSE file.
 
 import host.os
+import host.pipe
 import system
 
 /**
@@ -96,3 +97,66 @@ The base directory relative to which user-specific non-essential (cached) data
 */
 cache-home -> string?:
   return from-env_ "XDG_CACHE_HOME" --fallback=".cache"
+
+/**
+Opens the given URL in the default browser.
+
+Typically, opening the browser doesn't take long, so the function will wait for
+  at most $timeout-ms milli-seconds. If the command hasn't returned in that time
+  it will be killed.
+*/
+open-browser url/string --timeout-ms/int=20_000:
+  catch:
+    command/string? := null
+    args/List? := null
+    platform := system.platform
+    if platform == system.PLATFORM-LINUX:
+      command = "xdg-open"
+      args = [ url ]
+    else if platform == system.PLATFORM-MACOS:
+      command = "open"
+      args = [ url ]
+    else if platform == system.PLATFORM-WINDOWS:
+      command = "cmd"
+      escaped-url := url.replace "&" "^&"
+      args = [ "/c", "start", escaped-url ]
+    else:
+      throw "Unsupported platform"
+
+    if command != null:
+      fork-data := pipe.fork
+          true  // Use path.
+          pipe.PIPE-CREATED  // Stdin.
+          pipe.PIPE-CREATED  // Stdout.
+          pipe.PIPE-CREATED  // Stderr.
+          command
+          [ command ] + args
+      stdin := fork-data[0]
+      stdout/pipe.OpenPipe := fork-data[1]
+      stderr/pipe.OpenPipe := fork-data[2]
+      pid := fork-data[3]
+      stdin.out.close
+      task --background:: catch: stdout.in.drain
+      task --background:: catch: stderr.in.drain
+      task --background::
+        // The 'open' command should finish in almost no time.
+        // Even if it doesn't, then the CLI almost always terminates
+        // shortly after calling 'open'.
+        // However, if we modify the CLI, so it becomes long-running (for
+        // example inside a server), we need to make sure we don't keep
+        // spawned processes around.
+        exception := catch: with-timeout --ms=timeout-ms:
+          pipe.wait-for pid
+        if exception == DEADLINE-EXCEEDED-ERROR:
+          killed := false
+          if platform != system.PLATFORM-WINDOWS:
+            // Try a gentle kill first.
+            SIGTERM ::= 15
+            catch:
+              pipe.kill_ pid SIGTERM
+              with-timeout --ms=1_000:
+                pipe.wait-for pid
+                killed = true
+          if not killed:
+            SIGKILL ::= 9
+            catch: pipe.kill_ pid SIGKILL
