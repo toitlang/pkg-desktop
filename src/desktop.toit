@@ -6,7 +6,7 @@ import host.os
 import system
 
 /**
-A library for cross-platform functionality, primarily based on XDG
+A library for cross-platform desktop functionality, primarily based on XDG
   (Cross-Desktop Group) specifications.
 
 The XDG specification defines a set of environment variables that are used to
