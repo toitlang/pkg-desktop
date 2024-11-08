@@ -1,5 +1,5 @@
 dependencies:
-  cross:
+  desktop:
     path: ..
   host:
     url: github.com/toitlang/pkg-host
