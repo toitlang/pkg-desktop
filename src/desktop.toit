@@ -102,7 +102,7 @@ cache-home -> string?:
 Opens the given URL in the default browser.
 
 Typically, opening the browser doesn't take long, so the function will wait for
-  at most $timeout-ms milli-seconds. If the command hasn't returned in that time
+  at most $timeout-ms milliseconds. If the command hasn't returned in that time
   it will be killed.
 */
 open-browser url/string --timeout-ms/int=20_000:
