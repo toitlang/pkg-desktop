@@ -1,0 +1,8 @@
+name: desktop
+description: Cross platform functionality, based on XDG (Cross-Desktop Group) specifications.
+environment:
+  sdk: ^2.0.0-alpha.120
+dependencies:
+  host:
+    url: github.com/toitlang/pkg-host
+    version: ^1.11.0
