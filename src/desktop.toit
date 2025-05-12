@@ -124,18 +124,14 @@ open-browser url/string --timeout-ms/int=20_000:
       throw "Unsupported platform"
 
     if command != null:
-      fork-data := pipe.fork
-          true  // Use path.
-          pipe.PIPE-CREATED  // Stdin.
-          pipe.PIPE-CREATED  // Stdout.
-          pipe.PIPE-CREATED  // Stderr.
-          command
-          [ command ] + args
-      stdin := fork-data[0]
-      stdout/pipe.OpenPipe := fork-data[1]
-      stderr/pipe.OpenPipe := fork-data[2]
-      pid := fork-data[3]
-      stdin.out.close
+      process := pipe.fork command ([command] + args)
+          --create-stdin
+          --create-stdout
+          --create-stderr
+          --use-path
+      process.stdin.close
+      stdout := process.stdout
+      stderr := process.stderr
       task --background:: catch: stdout.in.drain
       task --background:: catch: stderr.in.drain
       task --background::
@@ -146,17 +142,17 @@ open-browser url/string --timeout-ms/int=20_000:
         // example inside a server), we need to make sure we don't keep
         // spawned processes around.
         exception := catch: with-timeout --ms=timeout-ms:
-          pipe.wait-for pid
+          process.wait
         if exception == DEADLINE-EXCEEDED-ERROR:
           killed := false
           if platform != system.PLATFORM-WINDOWS:
             // Try a gentle kill first.
             SIGTERM ::= 15
             catch:
-              pipe.kill_ pid SIGTERM
+              pipe.kill_ process.pid SIGTERM
               with-timeout --ms=1_000:
-                pipe.wait-for pid
+                process.wait
                 killed = true
           if not killed:
             SIGKILL ::= 9
-            catch: pipe.kill_ pid SIGKILL
+            catch: pipe.kill_ process.pid SIGKILL
